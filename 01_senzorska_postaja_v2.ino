@@ -17,12 +17,15 @@ DHT dht(DHTPIN, DHTTYPE); //// Initialize DHT sensor for normal 16mhz Arduino
 LiquidCrystal_I2C lcd = LiquidCrystal_I2C(0x27, 16, 2);
 
 // Spremenljivke
+int prikaz = 0;
 int chk;
 float hum;  //Stores humidity value
 float temp; //Stores temperature value
 unsigned long svetloba;
 unsigned long jakost1;
 unsigned long co2_volt;
+unsigned long t_zaslon, t_poslji;
+int poz_napis, poz_vredn, poz_enota;
 
 unsigned char buffer [N];
 int PM25 = 0, PM10 = 0, PM1 = 0;
@@ -65,6 +68,10 @@ void setup()
   // vzpostavimo serijsko povezavo z racunalnikom
   Serial.begin(9600);
   PMSerial.begin(9600);
+
+  // zacni stevce za oddajo podatkov in spremembo prikaza zaslona
+  t_zaslon = millis(); 
+  t_poslji = millis();
 }
 
 float read_analog_value(int in_pin, int read_rep){
@@ -119,33 +126,99 @@ void loop() {
     }
   }
 
-  // poslji podatke po serijski povezavi na drug vmesnik
-  Serial.print(String(jakost_razpon) + "," + String(svetloba_f) + "," + String(hum) + "," + String(temp) + "," + String(co2_volt_f) + "," + String(PM1) + "," + String(PM25) + "," + String(PM10) + ",");
+  // na vsakih 20 sekund poslji zbrane podatke naprej
+  // vsaj 15 sekund zamika zaradi omejitve pisanja prebranih podatkov v bazo
+  if(millis() - t_poslji > 20000)
+  {
+    // poslji podatke po serijski povezavi na drug vmesnik
+    Serial.print(String(jakost_razpon) + "," + String(svetloba_f) + "," + String(hum) + "," + String(temp) + "," + String(co2_volt_f) + "," + String(PM1) + "," + String(PM25) + "," + String(PM10) + ",");
+    t_poslji = millis();
+  }
 
-  // pobrisimo kar je zapisano na zaslonu
-  lcd.clear();
-  // izpisi jih se na za LCD zaslon
-  lcd.setCursor(0, 0); // Set the cursor on the first column and first row.
-  lcd.print(hum); // Print the string "Hello World!"
-  lcd.setCursor(4, 0);
-  lcd.print("%");
+  // na vsakih 5 sekund spremeni prikaz na zaslonu
+  if(millis() - t_zaslon > 5000)
+  {
+    // pobrisimo kar je zapisano na zaslonu
+    lcd.clear();
 
-  lcd.setCursor(6, 0); //Set the cursor on the third column and the second row (counting starts at 0!).
-  lcd.print(temp);
-  lcd.setCursor(10, 0);
-  lcd.print("C");
+    poz_napis = 0;
+    poz_vredn = 10;
+    poz_enota = 14;
 
-  lcd.setCursor(12, 0);
-  lcd.print(jakost_razpon);
+    // prikazi pravilen izpis na zaslon
+    switch(prikaz)
+    {
+      // izpisi na LCD zaslon izbran izpis
+      case 0:
+        lcd.setCursor(poz_napis, 0);
+        lcd.print("Temper:");
+        lcd.setCursor(poz_vredn, 0);
+        lcd.print(temp);
+        lcd.setCursor(poz_enota, 0);
+        lcd.print("C");
+        lcd.setCursor(poz_napis, 1);
+        lcd.print("Vlaznost:");
+        lcd.setCursor(poz_vredn, 1);
+        lcd.print(hum);
+        lcd.setCursor(poz_enota, 1);
+        lcd.print("%");
+        break;
+      case 1:
+        lcd.setCursor(poz_napis, 0);
+        lcd.print("Vlaznost:");
+        lcd.setCursor(poz_vredn, 0);
+        lcd.print(hum);
+        lcd.setCursor(poz_enota, 0);
+        lcd.print("%");
+        lcd.setCursor(poz_napis, 1);
+        lcd.print("Svetlost:");
+        lcd.setCursor(poz_vredn, 1);
+        lcd.print(svetloba_f);
+        break;
+      case 2:
+        lcd.setCursor(poz_napis, 0);
+        lcd.print("Svetlost:");
+        lcd.setCursor(poz_vredn, 0);
+        lcd.print(svetloba_f);
+        lcd.setCursor(poz_napis, 1);
+        lcd.print("Glasnost:");
+        lcd.setCursor(poz_vredn, 1);
+        lcd.print(jakost_razpon);
+        break;
+      case 3:
+        lcd.setCursor(poz_napis, 0);
+        lcd.print("Glasnost:");
+        lcd.setCursor(poz_vredn, 0);
+        lcd.print(jakost_razpon);
+        lcd.setCursor(poz_napis, 1);
+        lcd.print("Delci 2.5:");
+        lcd.setCursor(poz_vredn, 1);
+        lcd.print(PM25);
+        break;
+      case 4:
+        lcd.setCursor(poz_napis, 0);
+        lcd.print("Delci 2.5:");
+        lcd.setCursor(poz_vredn, 0);
+        lcd.print(PM25);
+        lcd.setCursor(poz_napis, 1);
+        lcd.print("Temper:");
+        lcd.setCursor(poz_vredn, 1);
+        lcd.print(temp);
+        lcd.setCursor(poz_enota, 1);
+        lcd.print("C");
+        break;
+      case 5:
 
-  lcd.setCursor(0, 1);
-  lcd.print(svetloba_f);
-  lcd.setCursor(7, 1);
-  lcd.print(PM25);
-  lcd.setCursor(10, 1);
-  lcd.print(co2_volt_f);
+        break;
+      default:
+        break;
+    }
 
-  // pocakamo doloceno stevilo sekund pred naslednjim branjem senzorjev in poslijanjem vrednosti
-  // vsaj 15 sekund zaradi omejitve pisanja prebranih podatkov v bazo
-  delay(20000);
+    // naslednjic prikazi naslednji zaslonski izpis
+    prikaz += 1;
+    prikaz %= 5;
+    t_zaslon = millis();
+  }
+
+
 }
